@@ -1,6 +1,7 @@
 # 🏢 TCCC Hub - Azure Deployment Guide
 
-![Cross Tenant Architecture](Deployment/img/Image%20cross.png)
+![tccc-multiagent-azure-infra](Deployment/img/Image%20cross.png)
+
 
 This guide is **exclusively** for deploying the TCCC Hub in The Coca-Cola Company subscription/tenant.
 
