@@ -10,7 +10,7 @@ This guide is **exclusively** for deploying the TCCC Hub in The Coca-Cola Compan
 - Active TCCC Azure subscription
 - Contributor or Owner permissions in the subscription
 - Azure CLI installed and configured
-- ARCA information (Tenant ID, App ID) for cross-tenant authentication
+- BOTTLER information (Tenant ID, App ID) for cross-tenant authentication
 
 ## 🚀 Deployment Options
 
@@ -35,10 +35,10 @@ az deployment group create \
     deployAIFoundry=true \
     deployCosmosDB=true \
     vnetAddressPrefix="10.1.0.0/16" \
-    arcaTenantId="<ARCA_TENANT_ID>" \
-    arcaAppId="<ARCA_APP_ID>" \
+    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
+    BOTTLERAppId="<BOTTLER_APP_ID>" \
     enableCrossTenantPeering=true \
-    arcaVnetResourceId="<ARCA_VNET_RESOURCE_ID>"
+    BOTTLERVnetResourceId="<BOTTLER_VNET_RESOURCE_ID>"
 ```
 
 **Included resources:**
@@ -74,8 +74,8 @@ az deployment group create \
     deployAIFoundry=false \
     deployCosmosDB=false \
     vnetAddressPrefix="10.1.0.0/16" \
-    arcaTenantId="<ARCA_TENANT_ID>" \
-    arcaAppId="<ARCA_APP_ID>"
+    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
+    BOTTLERAppId="<BOTTLER_APP_ID>"
 ```
 
 **Included resources:**
@@ -115,10 +115,10 @@ az deployment group create \
     deployAIFoundry=<true|false> \
     deployCosmosDB=<true|false> \
     vnetAddressPrefix="10.1.0.0/16" \
-    arcaTenantId="<ARCA_TENANT_ID>" \
-    arcaAppId="<ARCA_APP_ID>" \
+    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
+    BOTTLERAppId="<BOTTLER_APP_ID>" \
     enableCrossTenantPeering=<true|false> \
-    arcaVnetResourceId="<ARCA_VNET_ID_OPTIONAL>"
+    BOTTLERVnetResourceId="<BOTTLER_VNET_ID_OPTIONAL>"
 ```
 
 **Configurable parameters:**
@@ -130,8 +130,8 @@ az deployment group create \
 | `deployAIFoundry` | bool | true | Include Azure AI Foundry |
 | `deployCosmosDB` | bool | true | Include Cosmos DB |
 | `vnetAddressPrefix` | string | 10.1.0.0/16 | VNET IP range |
-| `enableCrossTenantPeering` | bool | false | Enable peering with ARCA |
-| `arcaVnetResourceId` | string | "" | ARCA VNET ID (if peering) |
+| `enableCrossTenantPeering` | bool | false | Enable peering with BOTTLER |
+| `BOTTLERVnetResourceId` | string | "" | BOTTLER VNET ID (if peering) |
 
 ## 📊 Options Comparison
 
@@ -180,12 +180,12 @@ TCCC_VNET_ID=$(az network vnet show \
   --name tccc-hub-prod-vnet-* \
   --query id -o tsv)
 
-# Share with ARCA team to establish peering
+# Share with BOTTLER team to establish peering
 ```
 
 ## ⚠️ Important Considerations
 
-1. **IP Ranges**: TCCC VNET uses 10.1.0.0/16. DO NOT change if planning peering with ARCA.
+1. **IP Ranges**: TCCC VNET uses 10.1.0.0/16. DO NOT change if planning peering with BOTTLER.
 2. **Unique names**: The template automatically adds a unique suffix.
 3. **Secrets**: Never include secrets in parameters. Use Key Vault post-deployment.
 4. **Costs**: Review cost estimation before choosing an option.
@@ -193,7 +193,7 @@ TCCC_VNET_ID=$(az network vnet show \
 
 ## 🆘 Support
 
-- **TCCC Infrastructure Team**: infra@coca-cola.com
+- **TCCC Infrastructure Team**: Emerging Technology
 - **Technical documentation**: See `TCCC-RESOURCES-DETAIL.md`
 - **Network architecture**: See `CROSS-TENANT-VNET-ARCHITECTURE.md`
 
