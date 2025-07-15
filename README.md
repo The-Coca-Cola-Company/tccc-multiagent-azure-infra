@@ -15,6 +15,9 @@ This guide is **exclusively** for deploying the TCCC Hub in The Coca-Cola Compan
 
 ### Option 1: Complete Infrastructure (Recommended for Production)
 
+[![Deploy Full](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-compliant.json)
+
+
 Includes **ALL** resources needed for a complete production environment.
 
 ```bash
@@ -53,6 +56,8 @@ az deployment group create \
 ---
 
 ### Option 2: Base Infrastructure (Development/Testing)
+
+[![Deploy Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-minimal.json)
 
 Minimal infrastructure **WITHOUT** Cosmos DB or AI Foundry to reduce costs.
 
@@ -94,6 +99,8 @@ az deployment group create \
 ---
 
 ### Option 3: Custom Deployment
+
+[![Deploy Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-minimal.json)
 
 Select exactly which resources you need using parameters.
 
