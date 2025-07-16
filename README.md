@@ -1,25 +1,89 @@
 # 🏢 TCCC Hub - Azure Deployment Guide
 
-![tccc-multiagent-azure-infra](Deployment/img/image%20cross.png)
+\![tccc-multiagent-azure-infra](Deployment/img/image%20cross.png)
 
+> 🚨 **CRITICAL: Two-Stage Deployment Required**  
+> You **MUST** deploy in two separate steps to prevent Key Vault access failures and deployment race conditions.
 
-This guide is **exclusively** for deploying the TCCC Hub in The Coca-Cola Company subscription/tenant.
+---
+
+## 🔄 Two-Stage Deployment Process
+
+### Why Two Stages?
+The Function App requires access to Key Vault secrets during deployment. A single-stage deployment creates a race condition where the Function App tries to access secrets before permissions are properly configured, causing this error:
+
+> ❌ **AccessToKeyVaultDenied** – Unable to resolve setting: WEBSITE_CONTENTAZUREFILECONNECTIONSTRING
+
+---
+
+## Step 1: 🔐 Pre-Configuration Setup
+
+This deploys foundational infrastructure and configures permissions:
+
+**Includes:**
+- ✅ Key Vault + managed identity permissions
+- ✅ Storage Account + connection strings 
+- ✅ Application Insights + secrets
+- ✅ App Service Plan (EP1 for VNet, Y1 for basic)
+- ✅ VNet, NSGs, and networking (if enabled)
+- ✅ Azure AI Foundry (if enabled)
+- ✅ Cosmos DB (if enabled)
+
+### 1️⃣ Full Production Pre-Config
+[\![Deploy Pre-Config to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
+
+### 2️⃣ Minimal Dev/Test Pre-Config
+[\![Deploy Pre-Config Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
+
+*Use same template - disable AI Foundry/Cosmos DB in parameters*
+
+---
+
+### ⏳ **Wait 60-90 seconds** before proceeding to Step 2
+
+This allows Azure to:
+- Complete role assignments
+- Propagate permissions
+- Initialize Key Vault access
+
+---
+
+## Step 2: 🚀 TCCC Hub Function Deployment
+
+This deploys the Function App using the infrastructure from Step 1:
+
+**Includes:**
+- ✅ Function App with system-assigned identity
+- ✅ VNet integration (if networking enabled)
+- ✅ Key Vault references for app settings
+- ✅ Role assignments for storage and Key Vault access
+
+### 1️⃣ Full Production Function App
+[\![Deploy Function App](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
+
+### 2️⃣ Minimal Dev/Test Function App
+[\![Deploy Function App Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
+
+**📋 Required Parameters for Step 2:**
+- `preDeployedStorageAccountName`: From Step 1 outputs
+- `preDeployedKeyVaultName`: From Step 1 outputs  
+- `preDeployedAppServicePlanName`: From Step 1 outputs
+- `preDeployedVnetName`: From Step 1 outputs (if networking enabled)
+
+---
 
 ## 📋 Prerequisites
 
 - Active TCCC Azure subscription
 - Contributor or Owner permissions in the subscription
 - Azure CLI installed and configured
-- BOTTLER information (Tenant ID, App ID) for cross-tenant authentication
+- Bottler information (Tenant IDs, App IDs) for cross-tenant authentication
 
-## 🚀 Deployment Options
+---
 
-### Option 1: Complete Infrastructure (Recommended for Production)
+## 🎯 CLI Deployment (Advanced)
 
-[![Deploy Full](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-compliant.json)
-
-
-Includes **ALL** resources needed for a complete production environment.
+### Option 1: Complete Production Deployment
 
 ```bash
 # Login to Azure with TCCC account
@@ -28,39 +92,50 @@ az login --tenant tccc.onmicrosoft.com
 # Create Resource Group
 az group create --name rg-tccc-hub-prod --location eastus
 
-# Complete deployment with ALL resources
+# STEP 1: Pre-Configuration
 az deployment group create \
   --resource-group rg-tccc-hub-prod \
-  --template-file tccc-hub-infra.json \
+  --template-file tccc-hub-preconfig.json \
   --parameters \
     environment=prod \
     deployNetworking=true \
     deployAIFoundry=true \
     deployCosmosDB=true \
     vnetAddressPrefix="10.1.0.0/16" \
-    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
-    BOTTLERAppId="<BOTTLER_APP_ID>" \
-    enableCrossTenantPeering=true \
-    BOTTLERVnetResourceId="<BOTTLER_VNET_RESOURCE_ID>"
+    bottlerTenantIds='["<BOTTLER_TENANT_ID_1>","<BOTTLER_TENANT_ID_2>"]' \
+    bottlerAppIds='["<BOTTLER_APP_ID_1>","<BOTTLER_APP_ID_2>"]' \
+    enableCrossTenantPeering=true
+
+# Get outputs from Step 1
+STORAGE_NAME=$(az deployment group show --resource-group rg-tccc-hub-prod --name tccc-hub-preconfig --query properties.outputs.storageAccountName.value -o tsv)
+KV_NAME=$(az deployment group show --resource-group rg-tccc-hub-prod --name tccc-hub-preconfig --query properties.outputs.keyVaultName.value -o tsv)
+ASP_NAME=$(az deployment group show --resource-group rg-tccc-hub-prod --name tccc-hub-preconfig --query properties.outputs.appServicePlanName.value -o tsv)
+VNET_NAME=$(az deployment group show --resource-group rg-tccc-hub-prod --name tccc-hub-preconfig --query properties.outputs.vnetName.value -o tsv)
+
+# Add required secrets to Key Vault
+az keyvault secret set --vault-name $KV_NAME --name storage-connection-string --value "$(az storage account show-connection-string --name $STORAGE_NAME --resource-group rg-tccc-hub-prod --query connectionString -o tsv)"
+
+# Wait 60 seconds for permissions to propagate
+sleep 60
+
+# STEP 2: Function App Deployment
+az deployment group create \
+  --resource-group rg-tccc-hub-prod \
+  --template-file tccc-hub-main.json \
+  --parameters \
+    environment=prod \
+    deployNetworking=true \
+    deployAIFoundry=true \
+    deployCosmosDB=true \
+    bottlerTenantIds='["<BOTTLER_TENANT_ID_1>","<BOTTLER_TENANT_ID_2>"]' \
+    bottlerAppIds='["<BOTTLER_APP_ID_1>","<BOTTLER_APP_ID_2>"]' \
+    preDeployedStorageAccountName=$STORAGE_NAME \
+    preDeployedKeyVaultName=$KV_NAME \
+    preDeployedAppServicePlanName=$ASP_NAME \
+    preDeployedVnetName=$VNET_NAME
 ```
 
-**Included resources:**
-- ✅ Virtual Network with subnets and NSGs
-- ✅ Storage Account with network ACLs
-- ✅ Key Vault
-- ✅ Azure AI Foundry (AI Hub for orchestration)
-- ✅ Cosmos DB (Database)
-- ✅ Function App with VNET Integration
-- ✅ Application Insights
-- ✅ Configuration for VNET Peering
-
----
-
-### Option 2: Base Infrastructure (Development/Testing)
-
-[![Deploy Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-minimal.json)
-
-Minimal infrastructure **WITHOUT** Cosmos DB or AI Foundry to reduce costs.
+### Option 2: Development/Testing Deployment
 
 ```bash
 # Login to Azure with TCCC account
@@ -69,140 +144,119 @@ az login --tenant tccc.onmicrosoft.com
 # Create Resource Group
 az group create --name rg-tccc-hub-dev --location eastus
 
-# Deploy without Cosmos DB or AI Foundry
+# STEP 1: Pre-Configuration (minimal)
 az deployment group create \
   --resource-group rg-tccc-hub-dev \
-  --template-file tccc-hub-infra.json \
+  --template-file tccc-hub-preconfig.json \
   --parameters \
     environment=dev \
     deployNetworking=true \
     deployAIFoundry=false \
     deployCosmosDB=false \
     vnetAddressPrefix="10.1.0.0/16" \
-    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
-    BOTTLERAppId="<BOTTLER_APP_ID>"
+    bottlerTenantIds='["<BOTTLER_TENANT_ID>"]' \
+    bottlerAppIds='["<BOTTLER_APP_ID>"]'
+
+# Get outputs and add secrets (same as above)
+# Wait 60 seconds
+# Deploy Step 2 with same parameters
 ```
-
-**Included resources:**
-- ✅ Virtual Network with subnets and NSGs
-- ✅ Storage Account
-- ✅ Key Vault
-- ✅ Function App with VNET Integration
-- ✅ Application Insights
-- ❌ Azure AI Foundry (not included)
-- ❌ Cosmos DB (not included)
-
-**Ideal for:**
-- Local development
-- Integration testing
-- Low-cost environments
 
 ---
 
-### Option 3: Custom Deployment
+## 📊 Deployment Comparison
 
-[![Deploy Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-infra-minimal.json)
+ < /dev/null |  Resource | Step 1 (Pre-Config) | Step 2 (Function App) |
+|----------|---------------------|----------------------|
+| Storage Account | ✅ | References Step 1 |
+| Key Vault | ✅ | References Step 1 |
+| App Service Plan | ✅ | References Step 1 |
+| VNet + NSGs | ✅ | References Step 1 |
+| AI Foundry | ✅ | References Step 1 |
+| Cosmos DB | ✅ | References Step 1 |
+| Function App | ❌ | ✅ Deployed |
+| Role Assignments | ❌ | ✅ Deployed |
 
-Select exactly which resources you need using parameters.
+---
 
-```bash
-# Login to Azure with TCCC account
-az login --tenant tccc.onmicrosoft.com
-
-# Create Resource Group
-az group create --name rg-tccc-hub-custom --location eastus
-
-# Custom deployment with specific parameters
-az deployment group create \
-  --resource-group rg-tccc-hub-custom \
-  --template-file tccc-hub-infra.json \
-  --parameters \
-    environment=test \
-    deployNetworking=<true|false> \
-    deployAIFoundry=<true|false> \
-    deployCosmosDB=<true|false> \
-    vnetAddressPrefix="10.1.0.0/16" \
-    BOTTLERTenantId="<BOTTLER_TENANT_ID>" \
-    BOTTLERAppId="<BOTTLER_APP_ID>" \
-    enableCrossTenantPeering=<true|false> \
-    BOTTLERVnetResourceId="<BOTTLER_VNET_ID_OPTIONAL>"
-```
-
-**Configurable parameters:**
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `environment` | string | dev | Environment: dev, test, prod |
-| `deployNetworking` | bool | true | Create VNET and network components |
-| `deployAIFoundry` | bool | true | Include Azure AI Foundry |
-| `deployCosmosDB` | bool | true | Include Cosmos DB |
-| `vnetAddressPrefix` | string | 10.1.0.0/16 | VNET IP range |
-| `enableCrossTenantPeering` | bool | false | Enable peering with BOTTLER |
-| `BOTTLERVnetResourceId` | string | "" | BOTTLER VNET ID (if peering) |
-
-## 📊 Options Comparison
-
-| Resource | Option 1 (Full) | Option 2 (Base) | Option 3 (Custom) |
-|----------|-----------------|-----------------|-------------------|
-| VNET + NSGs | ✅ | ✅ | Configurable |
-| Storage Account | ✅ | ✅ | ✅ Always |
-| Key Vault | ✅ | ✅ | ✅ Always |
-| Function App | ✅ | ✅ | ✅ Always |
-| App Insights | ✅ | ✅ | ✅ Always |
-| AI Foundry | ✅ | ❌ | Configurable |
-| Cosmos DB | ✅ | ❌ | Configurable |
-| VNET Peering | ✅ | Optional | Configurable |
-| **Estimated Cost** | $600-800/month | $60-120/month | Variable |
-
-## 🔧 Post-Deployment
+## 🔧 Post-Deployment Steps
 
 ### 1. Get deployment information:
 ```bash
-# View deployment outputs
+# View Step 2 outputs
 az deployment group show \
   --resource-group rg-tccc-hub-prod \
-  --name tccc-hub-infra \
+  --name tccc-hub-main \
   --query properties.outputs
 ```
 
-### 2. Configure App Registration (if it doesn't exist):
-```bash
-# Create App Registration for TCCC Hub
-az ad app create \
-  --display-name "TCCC-Hub-Orchestrator" \
-  --sign-in-audience AzureADMultipleOrgs
-```
-
-### 3. Deploy Function App code:
+### 2. Deploy Function App code:
 ```bash
 cd ../../tccc-hub
-func azure functionapp publish <FUNCTION_APP_NAME>
+func azure functionapp publish <FUNCTION_APP_NAME_FROM_OUTPUT>
 ```
 
-### 4. Configure VNET Peering (if applicable):
+### 3. Test deployment:
+```bash
+# Test Function App endpoint
+curl https://<FUNCTION_APP_NAME>.azurewebsites.net/api/health
+```
+
+### 4. Configure cross-tenant peering:
 ```bash
 # Get TCCC VNET ID
 TCCC_VNET_ID=$(az network vnet show \
   --resource-group rg-tccc-hub-prod \
-  --name tccc-hub-prod-vnet-* \
+  --name $VNET_NAME \
   --query id -o tsv)
 
-# Share with BOTTLER team to establish peering
+# Share with bottler teams for peering setup
+echo "TCCC VNET ID for peering: $TCCC_VNET_ID"
 ```
 
-## ⚠️ Important Considerations
+---
 
-1. **IP Ranges**: TCCC VNET uses 10.1.0.0/16. DO NOT change if planning peering with BOTTLER.
-2. **Unique names**: The template automatically adds a unique suffix.
-3. **Secrets**: Never include secrets in parameters. Use Key Vault post-deployment.
-4. **Costs**: Review cost estimation before choosing an option.
-5. **Hub Role**: TCCC Hub orchestrates all bottler communications - ensure proper configuration.
+## ⚠️ Important Notes
+
+1. **Mandatory Two-Stage Process**: Never skip Step 1 or combine steps
+2. **Wait Time**: Always wait 60-90 seconds between stages
+3. **Parameter Consistency**: Use same parameters for both stages
+4. **Secret Management**: Step 1 creates secrets, Step 2 consumes them
+5. **IP Ranges**: TCCC VNET uses `10.1.0.0/16` - don't change for bottler peering
+6. **Hub Role**: TCCC Hub orchestrates all bottler communications
+
+---
+
+## 🆘 Troubleshooting
+
+### Common Issues:
+
+**❌ AccessToKeyVaultDenied**
+- **Cause**: Deployed in single stage or insufficient wait time
+- **Solution**: Redeploy using two-stage process with proper wait
+
+**❌ Function App deployment fails**
+- **Cause**: Missing Step 1 outputs or incorrect parameter names
+- **Solution**: Verify Step 1 completed and use exact output names
+
+**❌ VNet integration fails**
+- **Cause**: Y1 SKU used with networking enabled
+- **Solution**: Templates auto-select EP1 SKU when networking=true
+
+**❌ Cross-tenant authentication fails**
+- **Cause**: Missing or incorrect bottler tenant/app IDs
+- **Solution**: Verify bottler credentials and update parameters
+
+---
 
 ## 🆘 Support
 
 - **TCCC Infrastructure Team**: Emerging Technology
-- **Technical documentation**: See `TCCC-RESOURCES-DETAIL.md`
-- **Network architecture**: See `CROSS-TENANT-VNET-ARCHITECTURE.md`
+- **Technical documentation**: [TCCC-RESOURCES-DETAIL.md](Docs/TCCC-RESOURCES-DETAIL.md)
+- **Network architecture**: [CROSS-TENANT-VNET-ARCHITECTURE.md](Docs/CROSS-TENANT-VNET-ARCHITECTURE.md)
+- **Security guide**: [CROSS-TENANT-AUTHENTICATION-GUIDE.md](Docs/CROSS-TENANT-AUTHENTICATION-GUIDE.md)
 
 ---
-*Last updated: ${new Date().toISOString()}*
+
+*Last updated: 2025-07-16*
+*Critical deployment fix: Two-stage process to prevent Key Vault access failures*
