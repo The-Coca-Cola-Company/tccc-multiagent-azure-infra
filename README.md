@@ -1,6 +1,6 @@
 # 🏢 TCCC Hub - Azure Deployment Guide
 
-\![tccc-multiagent-azure-infra](Deployment/img/image%20cross.png)
+![tccc-multiagent-azure-infra](Deployment/img/image%20cross.png)
 
 > 🚨 **CRITICAL: Two-Stage Deployment Required**  
 > You **MUST** deploy in two separate steps to prevent Key Vault access failures and deployment race conditions.
@@ -30,10 +30,10 @@ This deploys foundational infrastructure and configures permissions:
 - ✅ Cosmos DB (if enabled)
 
 ### 1️⃣ Full Production Pre-Config
-[\![Deploy Pre-Config to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
+[![Deploy Pre-Config to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
 
 ### 2️⃣ Minimal Dev/Test Pre-Config
-[\![Deploy Pre-Config Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
+[![Deploy Pre-Config Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-preconfig.json)
 
 *Use same template - disable AI Foundry/Cosmos DB in parameters*
 
@@ -59,10 +59,10 @@ This deploys the Function App using the infrastructure from Step 1:
 - ✅ Role assignments for storage and Key Vault access
 
 ### 1️⃣ Full Production Function App
-[\![Deploy Function App](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
+[![Deploy Function App](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
 
 ### 2️⃣ Minimal Dev/Test Function App
-[\![Deploy Function App Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
+[![Deploy Function App Minimal](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FThe-Coca-Cola-Company%2Ftccc-multiagent-azure-infra%2Fmain%2FDeployment%2Ftccc-hub-main.json)
 
 **📋 Required Parameters for Step 2:**
 - `preDeployedStorageAccountName`: From Step 1 outputs
