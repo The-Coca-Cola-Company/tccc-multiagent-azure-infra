@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "\ud83d\udd10 TCCC Hub Pre-Configuration - Foundational Infrastructure (Step 1/2)",
+    "description": "🔐 Step 1/2: Deploy TCCC Hub infrastructure, set secrets, assign roles",
     "_generator": {
       "name": "bicep",
       "version": "0.20.4.51522",
@@ -43,27 +43,6 @@
         "description": "Deploy Cosmos DB for hub state management"
       }
     },
-    "bottlerTenantIds": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Array of bottler tenant IDs for cross-tenant authentication (obtain from bottler teams)"
-      }
-    },
-    "bottlerAppIds": {
-      "type": "array",
-      "defaultValue": [],
-      "metadata": {
-        "description": "Array of bottler app registration IDs (obtain from bottler teams)"
-      }
-    },
-    "corsAllowedOrigins": {
-      "type": "string",
-      "defaultValue": "https://portal.azure.com,https://ms.portal.azure.com",
-      "metadata": {
-        "description": "Comma-separated list of allowed CORS origins"
-      }
-    },
     "deployNetworking": {
       "type": "bool",
       "defaultValue": true,
@@ -84,12 +63,10 @@
     "keyVaultSuffix": "[substring(uniqueString(resourceGroup().id, deployment().name), 0, 6)]",
     "baseName": "tccc-hub",
     "resourcePrefix": "[format('{0}-{1}', variables('baseName'), parameters('environment'))]",
-    "functionAppName": "[format('{0}-func-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
     "storageAccountName": "[toLower(format('st{0}{1}{2}', replace(variables('baseName'), '-', ''), parameters('environment'), variables('uniqueSuffix')))]",
     "keyVaultName": "[format('kv{0}{1}{2}', replace(variables('baseName'), '-', ''), parameters('environment'), variables('keyVaultSuffix'))]",
     "vnetName": "[format('{0}-vnet-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
-    "nsgPrefix": "[format('{0}-nsg', variables('resourcePrefix'))]",
-    "corsOriginsArray": "[split(parameters('corsAllowedOrigins'), ',')]"
+    "nsgPrefix": "[format('{0}-nsg', variables('resourcePrefix'))]"
   },
   "resources": [
     {
@@ -319,6 +296,56 @@
         "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
         "[resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
       ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/storage-connection-string', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-04-01').keys[0].value, environment().suffixes.storage)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/appinsights-connection-string', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[reference(resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2020-02-02').ConnectionString]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployCosmosDB')]",
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/cosmos-endpoint', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-11-15').documentEndpoint]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployCosmosDB')]",
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/cosmos-key', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[listKeys(resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-11-15').primaryMasterKey]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
     }
   ],
   "outputs": {
@@ -334,21 +361,17 @@
       "type": "string",
       "value": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri]"
     },
-    "appInsightsName": {
-      "type": "string",
-      "value": "[format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]"
-    },
     "appServicePlanName": {
       "type": "string",
       "value": "[format('{0}-asp-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]"
     },
     "vnetName": {
       "type": "string",
-      "value": "[variables('vnetName')]"
+      "value": "[if(parameters('deployNetworking'), variables('vnetName'), '')]"
     },
-    "postConfigSteps": {
+    "readyForStep2": {
       "type": "string",
-      "value": "STEP 1 COMPLETE\\! Now add the following secrets to Key Vault:\n\n1. storage-connection-string\n2. appinsights-connection-string\n3. cosmos-endpoint (if deployed)\n4. cosmos-key (if deployed)\n\nThen proceed to Step 2: Function App deployment"
+      "value": "Step 1 Complete! All secrets created. Wait 60-90 seconds then deploy Step 2."
     }
   }
 }
