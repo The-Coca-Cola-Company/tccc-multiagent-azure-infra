@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "🚀 Step 2/2: Deploy TCCC Hub Function App (references Step 1 infrastructure)",
+    "description": "🚀 Step 2/2: Deploy TCCC Hub Function App (references Step 1 infrastructure) - FIXED",
     "_generator": {
       "name": "bicep",
       "version": "0.20.4.51522",
@@ -122,12 +122,8 @@
           "ftpsState": "Disabled",
           "appSettings": [
             {
-              "name": "AzureWebJobsStorage__accountName",
-              "value": "[variables('storageAccountName')]"
-            },
-            {
-              "name": "AzureWebJobsStorage__credential",
-              "value": "managedidentity"
+              "name": "AzureWebJobsStorage",
+              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
             },
             {
               "name": "WEBSITE_CONTENTSHARE",
@@ -164,6 +160,10 @@
             {
               "name": "CORS_ALLOWED_ORIGINS",
               "value": "[parameters('corsAllowedOrigins')]"
+            },
+            {
+              "name": "WEBSITE_CONTENTOVERVNET",
+              "value": "1"
             }
           ],
           "pythonVersion": "3.11",
@@ -222,6 +222,8 @@
       "apiVersion": "2023-01-01",
       "name": "[format('{0}/appsettings', variables('functionAppName'))]",
       "properties": {
+        "AzureWebJobsStorage__accountName": "[variables('storageAccountName')]",
+        "AzureWebJobsStorage__credential": "managedidentity",
         "APPLICATIONINSIGHTS_CONNECTION_STRING": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/appinsights-connection-string/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
         "COSMOS_DB_ENDPOINT": "[if(parameters('deployCosmosDB'), format('@Microsoft.KeyVault(SecretUri={0}secrets/cosmos-endpoint/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), '')]",
         "COSMOS_DB_KEY": "[if(parameters('deployCosmosDB'), format('@Microsoft.KeyVault(SecretUri={0}secrets/cosmos-key/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), '')]"
