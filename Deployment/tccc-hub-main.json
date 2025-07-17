@@ -185,13 +185,7 @@
           }
         }
       },
-      "dependsOn": [
-        "[resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
-        "[resourceId('Microsoft.Web/serverfarms', format('{0}-asp-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
-        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
-      ]
+      "dependsOn": []
     },
     {
       "type": "Microsoft.Authorization/roleAssignments",
@@ -204,8 +198,7 @@
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     },
     {
@@ -219,8 +212,7 @@
         "principalType": "ServicePrincipal"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]",
-        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]"
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
       ]
     }
   ],
