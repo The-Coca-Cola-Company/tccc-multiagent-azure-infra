@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "🔐 Step 1/2: Deploy TCCC Hub infrastructure, set secrets, assign roles - FIXED",
+    "description": "🔐 Step 1/2: Deploy TCCC Hub infrastructure with Service Bus & Event Grid - ENTERPRISE ORCHESTRATOR",
     "_generator": {
       "name": "bicep",
       "version": "0.20.4.51522",
@@ -92,6 +92,34 @@
             }
           },
           {
+            "name": "AllowServiceBusInbound",
+            "properties": {
+              "priority": 200,
+              "access": "Allow",
+              "direction": "Inbound",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5671-5672",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "*",
+              "description": "Allow Service Bus AMQP from VNET"
+            }
+          },
+          {
+            "name": "AllowEventGridInbound",
+            "properties": {
+              "priority": 300,
+              "access": "Allow",
+              "direction": "Inbound",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "VirtualNetwork",
+              "destinationAddressPrefix": "*",
+              "description": "Allow Event Grid HTTPS from VNET"
+            }
+          },
+          {
             "name": "DenyAllInbound",
             "properties": {
               "priority": 4096,
@@ -117,17 +145,70 @@
       "properties": {
         "securityRules": [
           {
-            "name": "DenyAllInbound",
+            "name": "AllowPrivateEndpointInbound",
             "properties": {
-              "priority": 4096,
-              "access": "Deny",
+              "priority": 100,
+              "access": "Allow",
               "direction": "Inbound",
               "protocol": "*",
               "sourcePortRange": "*",
               "destinationPortRange": "*",
-              "sourceAddressPrefix": "*",
+              "sourceAddressPrefix": "VirtualNetwork",
               "destinationAddressPrefix": "*",
-              "description": "Deny all inbound traffic to private endpoints"
+              "description": "Allow all traffic to private endpoints from VNET"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "condition": "[parameters('deployNetworking')]",
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2023-06-01",
+      "name": "[format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowServiceBusOutbound",
+            "properties": {
+              "priority": 100,
+              "access": "Allow",
+              "direction": "Outbound",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "5671-5672",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "ServiceBus",
+              "description": "Allow Service Bus communication"
+            }
+          },
+          {
+            "name": "AllowEventGridOutbound",
+            "properties": {
+              "priority": 200,
+              "access": "Allow",
+              "direction": "Outbound",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "EventHub",
+              "description": "Allow Event Grid communication"
+            }
+          },
+          {
+            "name": "AllowHttpsOutbound",
+            "properties": {
+              "priority": 300,
+              "access": "Allow",
+              "direction": "Outbound",
+              "protocol": "Tcp",
+              "sourcePortRange": "*",
+              "destinationPortRange": "443",
+              "sourceAddressPrefix": "*",
+              "destinationAddressPrefix": "Internet",
+              "description": "Allow HTTPS outbound"
             }
           }
         ]
@@ -160,6 +241,15 @@
                 },
                 {
                   "service": "Microsoft.Web"
+                },
+                {
+                  "service": "Microsoft.ServiceBus"
+                },
+                {
+                  "service": "Microsoft.EventGrid"
+                },
+                {
+                  "service": "Microsoft.AzureCosmosDB"
                 }
               ],
               "delegations": [
@@ -179,12 +269,47 @@
               "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
               "privateEndpointNetworkPolicies": "Disabled"
             }
+          },
+          {
+            "name": "snet-orchestration",
+            "properties": {
+              "addressPrefix": "10.1.3.0/24",
+              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.ServiceBus"
+                },
+                {
+                  "service": "Microsoft.EventGrid"
+                }
+              ]
+            }
           }
         ]
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]",
-        "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]"
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-04-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false,
+        "networkAcls": "[if(parameters('deployNetworking'), json(concat('{\"bypass\": \"AzureServices\", \"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVnetServiceEndpoint\": false}]}')), json('{\"defaultAction\": \"Allow\", \"bypass\": \"AzureServices\"}'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ]
     },
     {
@@ -270,8 +395,13 @@
             "name": "EnableServerless"
           }
         ],
-        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]"
-      }
+        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
+        "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
+        "virtualNetworkRules": "[if(parameters('deployNetworking'), array(createObject('id', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), 'ignoreMissingVNetServiceEndpoint', false)), array())]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
     },
     {
       "condition": "[parameters('deployAIFoundry')]",
@@ -291,13 +421,157 @@
         "applicationInsights": "[resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
         "hbiWorkspace": false,
         "managedNetwork": {
-          "isolationMode": "AllowInternetOutbound"
+          "isolationMode": "[if(parameters('deployNetworking'), 'AllowOnlyApprovedOutbound', 'AllowInternetOutbound')]"
         }
       },
       "dependsOn": [
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
         "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
         "[resourceId('Microsoft.Insights/components', format('{0}-ai-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Standard"
+      },
+      "properties": {
+        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
+        "networkRuleSets": "[if(parameters('deployNetworking'), createObject('defaultAction', 'Deny', 'virtualNetworkRules', array(createObject('subnet', createObject('id', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))), 'ignoreMissingVnetServiceEndpoint', false), createObject('subnet', createObject('id', format('{0}/subnets/snet-orchestration', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))), 'ignoreMissingVnetServiceEndpoint', false))), createObject('defaultAction', 'Allow'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')), 'agent-messages')]",
+      "properties": {
+        "maxSizeInMegabytes": 1024,
+        "defaultMessageTimeToLive": "P14D",
+        "deadLetteringOnMessageExpiration": true,
+        "maxDeliveryCount": 10
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')), 'orchestration-commands')]",
+      "properties": {
+        "maxSizeInMegabytes": 2048,
+        "defaultMessageTimeToLive": "P7D",
+        "deadLetteringOnMessageExpiration": true,
+        "maxDeliveryCount": 5
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/topics",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')), 'bottler-events')]",
+      "properties": {
+        "maxSizeInMegabytes": 2048,
+        "defaultMessageTimeToLive": "P14D"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.EventGrid/topics",
+      "apiVersion": "2022-06-15",
+      "name": "[format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployNetworking')]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-06-01",
+      "name": "[format('{0}-sb-pe-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[format('{0}/subnets/snet-private-endpoints', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "servicebus-connection",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+              "groupIds": ["namespace"]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployNetworking')]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-06-01",
+      "name": "[format('{0}-eg-pe-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[format('{0}/subnets/snet-private-endpoints', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "eventgrid-connection",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+              "groupIds": ["topic"]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployNetworking')]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2023-06-01",
+      "name": "[format('{0}-cosmos-pe-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "subnet": {
+          "id": "[format('{0}/subnets/snet-private-endpoints', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "cosmos-connection",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+              "groupIds": ["Sql"]
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ]
     },
     {
@@ -349,6 +623,68 @@
         "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
       ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/servicebus-connection-string', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[listKeys(resourceId('Microsoft.ServiceBus/namespaces/authorizationRules', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')), 'RootManageSharedAccessKey'), '2022-10-01-preview').primaryConnectionString]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.ServiceBus/namespaces', format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/eventgrid-access-key', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[listKeys(resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2022-06-15').key1]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/eventgrid-endpoint', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[reference(resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2022-06-15').endpoint]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.EventGrid/topics', format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployAIFoundry')]",
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/ai-foundry-endpoint', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-10-01').discoveryUrl]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployAIFoundry')]",
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2023-07-01",
+      "name": "[format('{0}/ai-foundry-key', variables('keyVaultName'))]",
+      "properties": {
+        "value": "[listKeys(resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-10-01').primaryKey]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+        "[resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
+      ]
     }
   ],
   "outputs": {
@@ -372,9 +708,25 @@
       "type": "string",
       "value": "[if(parameters('deployNetworking'), variables('vnetName'), '')]"
     },
+    "serviceBusNamespace": {
+      "type": "string",
+      "value": "[format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+    },
+    "eventGridTopic": {
+      "type": "string",
+      "value": "[format('{0}-eg-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]"
+    },
+    "aiFoundryHub": {
+      "type": "string",
+      "value": "[if(parameters('deployAIFoundry'), format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix')), '')]"
+    },
+    "orchestrationSubnet": {
+      "type": "string", 
+      "value": "[if(parameters('deployNetworking'), format('{0}/subnets/snet-orchestration', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '')]"
+    },
     "readyForStep2": {
       "type": "string",
-      "value": "Step 1 Complete! All secrets created. Wait 60-90 seconds then deploy Step 2."
+      "value": "✅ TCCC HUB ORCHESTRATOR READY! All services deployed with full VNET integration. Wait 60-90 seconds then deploy Step 2."
     }
   }
 }

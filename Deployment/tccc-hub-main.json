@@ -2,11 +2,11 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "🚀 Step 2/2: Deploy TCCC Hub Function App (references Step 1 infrastructure) - FIXED",
+    "description": "🚀 Step 2/2: Deploy Bottler Agent Function App with Service Bus & Event Grid Integration - V29 FINAL",
     "_generator": {
       "name": "bicep",
       "version": "0.20.4.51522",
-      "templateHash": "98765432109876543210"
+      "templateHash": "12345678901234567890"
     }
   },
   "parameters": {
@@ -40,21 +40,25 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Deploy Cosmos DB for hub state management"
+        "description": "Deploy Cosmos DB for agent state management"
       }
     },
-    "bottlerTenantIds": {
-      "type": "array",
-      "defaultValue": [],
+    "tcccTenantId": {
+      "type": "string",
       "metadata": {
-        "description": "Array of bottler tenant IDs for cross-tenant authentication (obtain from bottler teams)"
+        "description": "TCCC Tenant ID for cross-tenant authentication (required - obtain from TCCC team)"
       }
     },
-    "bottlerAppIds": {
-      "type": "array",
-      "defaultValue": [],
+    "tcccAppId": {
+      "type": "string",
       "metadata": {
-        "description": "Array of bottler app registration IDs (obtain from bottler teams)"
+        "description": "TCCC App Registration ID for authentication (required - obtain from TCCC team)"
+      }
+    },
+    "tcccHubUrl": {
+      "type": "string",
+      "metadata": {
+        "description": "TCCC Hub Function App URL (e.g., https://tccc-hub-func.azurewebsites.net)"
       }
     },
     "corsAllowedOrigins": {
@@ -88,17 +92,31 @@
       "metadata": {
         "description": "VNET name from Step 1 deployment (if networking enabled)"
       }
+    },
+    "preDeployedServiceBusNamespace": {
+      "type": "string",
+      "metadata": {
+        "description": "Service Bus namespace name from Step 1 deployment"
+      }
+    },
+    "preDeployedEventGridTopic": {
+      "type": "string",
+      "metadata": {
+        "description": "Event Grid topic name from Step 1 deployment"
+      }
     }
   },
   "variables": {
     "uniqueSuffix": "[substring(uniqueString(resourceGroup().id), 0, 6)]",
-    "baseName": "tccc-hub",
+    "baseName": "bottler-agent",
     "resourcePrefix": "[format('{0}-{1}', variables('baseName'), parameters('environment'))]",
     "functionAppName": "[format('{0}-func-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
     "storageAccountName": "[parameters('preDeployedStorageAccountName')]",
     "keyVaultName": "[parameters('preDeployedKeyVaultName')]",
     "appServicePlanName": "[parameters('preDeployedAppServicePlanName')]",
     "vnetName": "[parameters('preDeployedVnetName')]",
+    "serviceBusNamespace": "[parameters('preDeployedServiceBusNamespace')]",
+    "eventGridTopic": "[parameters('preDeployedEventGridTopic')]",
     "corsOriginsArray": "[split(parameters('corsAllowedOrigins'), ',')]"
   },
   "resources": [
@@ -147,23 +165,63 @@
             },
             {
               "name": "AGENT_TYPE",
-              "value": "TCCC_HUB"
+              "value": "BOTTLER_AGENT"
             },
             {
-              "name": "BOTTLER_TENANT_IDS",
-              "value": "[if(empty(parameters('bottlerTenantIds')), '', join(parameters('bottlerTenantIds'), ','))]"
+              "name": "TCCC_TENANT_ID",
+              "value": "[parameters('tcccTenantId')]"
             },
             {
-              "name": "BOTTLER_APP_IDS",
-              "value": "[if(empty(parameters('bottlerAppIds')), '', join(parameters('bottlerAppIds'), ','))]"
+              "name": "TCCC_APP_ID",
+              "value": "[parameters('tcccAppId')]"
+            },
+            {
+              "name": "TCCC_HUB_URL",
+              "value": "[parameters('tcccHubUrl')]"
             },
             {
               "name": "CORS_ALLOWED_ORIGINS",
               "value": "[parameters('corsAllowedOrigins')]"
             },
             {
+              "name": "SERVICE_BUS_NAMESPACE",
+              "value": "[variables('serviceBusNamespace')]"
+            },
+            {
+              "name": "EVENT_GRID_TOPIC",
+              "value": "[variables('eventGridTopic')]"
+            },
+            {
+              "name": "ENVIRONMENT",
+              "value": "[parameters('environment')]"
+            },
+            {
+              "name": "BOTTLER_AGENT_ROLE",
+              "value": "spoke"
+            },
+            {
+              "name": "VNET_INTEGRATION_ENABLED",
+              "value": "[string(parameters('deployNetworking'))]"
+            },
+            {
+              "name": "COSMOS_DB_ENABLED",
+              "value": "[string(parameters('deployCosmosDB'))]"
+            },
+            {
+              "name": "SECURITY_LEVEL",
+              "value": "[if(equals(parameters('environment'), 'prod'), 'critical', 'high')]"
+            },
+            {
+              "name": "CROSS_TENANT_AUTH_ENABLED",
+              "value": "true"
+            },
+            {
+              "name": "HUB_SPOKE_ENFORCEMENT",
+              "value": "strict"
+            },
+            {
               "name": "WEBSITE_CONTENTOVERVNET",
-              "value": "1"
+              "value": "[if(parameters('deployNetworking'), '1', '0')]"
             }
           ],
           "pythonVersion": "3.11",
@@ -206,10 +264,39 @@
     {
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2022-04-01",
-      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), variables('functionAppName'), 'StorageFileDataSMBShareContributor', uniqueString(resourceGroup().id))]",
-      "scope": "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespace')), variables('functionAppName'), 'ServiceBusDataOwner', uniqueString(resourceGroup().id))]",
+      "scope": "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespace'))]",
       "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0c867c2a-1d8c-454a-a3db-ab2ea1bdc8bb')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '090c5cfd-751d-490a-894a-3ce6f1109419')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-01-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.EventGrid/topics', variables('eventGridTopic')), variables('functionAppName'), 'EventGridDataSender', uniqueString(resourceGroup().id))]",
+      "scope": "[resourceId('Microsoft.EventGrid/topics', variables('eventGridTopic'))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'd5a91429-5739-47e2-a06b-3470a27159e7')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-01-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
+      ]
+    },
+    {
+      "condition": "[parameters('deployCosmosDB')]",
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), variables('functionAppName'), 'CosmosDBBuiltInDataContributor', uniqueString(resourceGroup().id))]",
+      "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '00000000-0000-0000-0000-000000000002')]",
         "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-01-01', 'full').identity.principalId]",
         "principalType": "ServicePrincipal"
       },
@@ -226,7 +313,16 @@
         "AzureWebJobsStorage__credential": "managedidentity",
         "APPLICATIONINSIGHTS_CONNECTION_STRING": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/appinsights-connection-string/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
         "COSMOS_DB_ENDPOINT": "[if(parameters('deployCosmosDB'), format('@Microsoft.KeyVault(SecretUri={0}secrets/cosmos-endpoint/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), '')]",
-        "COSMOS_DB_KEY": "[if(parameters('deployCosmosDB'), format('@Microsoft.KeyVault(SecretUri={0}secrets/cosmos-key/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), '')]"
+        "COSMOS_DB_KEY": "[if(parameters('deployCosmosDB'), format('@Microsoft.KeyVault(SecretUri={0}secrets/cosmos-key/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri), '')]",
+        "AI_FOUNDRY_ENDPOINT": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/ai-foundry-endpoint/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
+        "AI_FOUNDRY_KEY": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/ai-foundry-key/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
+        "SERVICE_BUS_CONNECTION_STRING": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/servicebus-connection-string/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
+        "EVENT_GRID_ENDPOINT": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/eventgrid-endpoint/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
+        "EVENT_GRID_ACCESS_KEY": "[format('@Microsoft.KeyVault(SecretUri={0}secrets/eventgrid-access-key/)', reference(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), '2023-07-01').vaultUri)]",
+        "BOTTLER_MESSAGES_QUEUE": "bottler-messages",
+        "HUB_COMMANDS_QUEUE": "hub-commands",
+        "AGENT_EVENTS_TOPIC": "agent-events",
+        "AZURE_CLIENT_ID": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-01-01', 'full').identity.principalId]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Web/sites', variables('functionAppName'))]"
@@ -250,26 +346,54 @@
       "type": "string",
       "value": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), variables('functionAppName'), 'StorageBlobDataOwner', uniqueString(resourceGroup().id))]",
       "metadata": {
-        "description": "GUID of the Storage Blob Data Owner role assignment for the TCCC Hub Function App"
-      }
-    },
-    "storageFileRoleAssignmentGuid": {
-      "type": "string",
-      "value": "[guid(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), variables('functionAppName'), 'StorageFileDataSMBShareContributor', uniqueString(resourceGroup().id))]",
-      "metadata": {
-        "description": "GUID of the Storage File Data SMB Share Contributor role assignment for the TCCC Hub Function App"
+        "description": "GUID of the Storage Blob Data Owner role assignment for the Bottler Agent Function App"
       }
     },
     "keyVaultRoleAssignmentGuid": {
       "type": "string",
       "value": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), variables('functionAppName'), 'KeyVaultSecretsUser', uniqueString(resourceGroup().id))]",
       "metadata": {
-        "description": "GUID of the Key Vault Secrets User role assignment for the TCCC Hub Function App"
+        "description": "GUID of the Key Vault Secrets User role assignment for the Bottler Agent Function App"
+      }
+    },
+    "serviceBusRoleAssignmentGuid": {
+      "type": "string",
+      "value": "[guid(resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusNamespace')), variables('functionAppName'), 'ServiceBusDataOwner', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "GUID of the Service Bus Data Owner role assignment for the Bottler Agent Function App"
+      }
+    },
+    "eventGridRoleAssignmentGuid": {
+      "type": "string",
+      "value": "[guid(resourceId('Microsoft.EventGrid/topics', variables('eventGridTopic')), variables('functionAppName'), 'EventGridDataSender', uniqueString(resourceGroup().id))]",
+      "metadata": {
+        "description": "GUID of the Event Grid Data Sender role assignment for the Bottler Agent Function App"
+      }
+    },
+    "cosmosRoleAssignmentGuid": {
+      "type": "string",
+      "value": "[if(parameters('deployCosmosDB'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), variables('functionAppName'), 'CosmosDBBuiltInDataContributor', uniqueString(resourceGroup().id)), '')]",
+      "metadata": {
+        "description": "GUID of the Cosmos DB Built-in Data Contributor role assignment for the Bottler Agent Function App"
+      }
+    },
+    "integrationEndpoints": {
+      "type": "object",
+      "value": {
+        "functionAppUrl": "[reference(resourceId('Microsoft.Web/sites', variables('functionAppName')), '2023-01-01').defaultHostName]",
+        "serviceBusNamespace": "[variables('serviceBusNamespace')]",
+        "eventGridTopic": "[variables('eventGridTopic')]",
+        "bottlerMessagesQueue": "bottler-messages",
+        "hubCommandsQueue": "hub-commands",
+        "agentEventsTopic": "agent-events"
+      },
+      "metadata": {
+        "description": "Bottler Agent integration endpoints for TCCC Hub communication"
       }
     },
     "deploymentComplete": {
       "type": "string",
-      "value": "SUCCESS! TCCC Hub is deployed and ready for function code."
+      "value": "🎯 SUCCESS! BOTTLER AGENT V29 is deployed and ready for enterprise multi-agent coordination!"
     }
   }
 }
