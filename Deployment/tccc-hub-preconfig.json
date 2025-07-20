@@ -227,65 +227,65 @@
           ]
         },
         "subnets": [
-          {
-            "name": "snet-functions",
-            "properties": {
-              "addressPrefix": "10.1.1.0/24",
-              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-              "serviceEndpoints": [
-                {
-                  "service": "Microsoft.Storage"
-                },
-                {
-                  "service": "Microsoft.KeyVault"
-                },
-                {
-                  "service": "Microsoft.Web"
-                },
-                {
-                  "service": "Microsoft.ServiceBus"
-                },
-                {
-                  "service": "Microsoft.EventGrid"
-                },
-                {
-                  "service": "Microsoft.AzureCosmosDB"
+        {
+          "name": "snet-functions",
+          "properties": {
+            "addressPrefix": "10.1.1.0/24",
+            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+            "serviceEndpoints": [
+              {
+                "service": "Microsoft.Storage"
+              },
+              {
+                "service": "Microsoft.KeyVault"
+              },
+              {
+                "service": "Microsoft.Web"
+              },
+              {
+                "service": "Microsoft.ServiceBus"
+              },
+              {
+                "service": "Microsoft.EventHub"
+              },
+              {
+                "service": "Microsoft.AzureCosmosDB"
+              }
+            ],
+            "delegations": [
+              {
+                "name": "delegation",
+                "properties": {
+                  "serviceName": "Microsoft.Web/serverFarms"
                 }
-              ],
-              "delegations": [
-                {
-                  "name": "delegation",
-                  "properties": {
-                    "serviceName": "Microsoft.Web/serverFarms"
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "name": "snet-private-endpoints",
-            "properties": {
-              "addressPrefix": "10.1.2.0/24",
-              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-              "privateEndpointNetworkPolicies": "Disabled"
-            }
-          },
-          {
-            "name": "snet-orchestration",
-            "properties": {
-              "addressPrefix": "10.1.3.0/24",
-              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-              "serviceEndpoints": [
-                {
-                  "service": "Microsoft.ServiceBus"
-                },
-                {
-                  "service": "Microsoft.EventGrid"
-                }
-              ]
-            }
+              }
+            ]
           }
-        ]
+        },
+        {
+          "name": "snet-private-endpoints",
+          "properties": {
+            "addressPrefix": "10.1.2.0/24",
+            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+            "privateEndpointNetworkPolicies": "Disabled"
+          }
+        },
+        {
+          "name": "snet-orchestration",
+          "properties": {
+            "addressPrefix": "10.1.3.0/24",
+            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+            "serviceEndpoints": [
+              {
+                "service": "Microsoft.ServiceBus"
+              },
+              {
+                "service": "Microsoft.EventHub"
+              }
+            ]
+          }
+        }
+      ]
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]",
