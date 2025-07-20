@@ -354,36 +354,36 @@
       ]
     },
     {
-      "condition": "[parameters('deployCosmosDB')]",
-      "type": "Microsoft.DocumentDB/databaseAccounts",
-      "apiVersion": "2023-11-15",
-      "name": "[format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
-      "location": "[parameters('location')]",
-      "kind": "GlobalDocumentDB",
-      "properties": {
-        "databaseAccountOfferType": "Standard",
-        "consistencyPolicy": {
-          "defaultConsistencyLevel": "Session"
-        },
-        "locations": [
-          {
-            "locationName": "[parameters('location')]",
-            "failoverPriority": 0
-          }
-        ],
-        "capabilities": [
-          {
-            "name": "EnableServerless"
-          }
-        ],
-        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
-        "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
-        "virtualNetworkRules": "[if(parameters('deployNetworking'), createArray(createObject('id', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), 'ignoreMissingVNetServiceEndpoint', false)), createArray())]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
-      ]
+  "condition": "[parameters('deployCosmosDB')]",
+  "type": "Microsoft.DocumentDB/databaseAccounts",
+  "apiVersion": "2023-11-15",
+  "name": "[format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+  "location": "[parameters('location')]",
+  "kind": "GlobalDocumentDB",
+  "properties": {
+    "databaseAccountOfferType": "Standard",
+    "consistencyPolicy": {
+      "defaultConsistencyLevel": "Session"
     },
+    "locations": [
+      {
+        "locationName": "[parameters('location')]",
+        "failoverPriority": 0
+      }
+    ],
+    "capabilities": [
+      {
+        "name": "EnableServerless"
+      }
+    ],
+    "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
+    "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
+    "virtualNetworkRules": "[if(parameters('deployNetworking'), json(concat('[{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVNetServiceEndpoint\": false}]')), json('[]'))]"
+  },
+  "dependsOn": [
+    "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+  ]
+}  ,
     {
       "condition": "[parameters('deployAIFoundry')]",
       "type": "Microsoft.MachineLearningServices/workspaces",
