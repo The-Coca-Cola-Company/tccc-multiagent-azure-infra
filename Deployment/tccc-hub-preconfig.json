@@ -227,65 +227,65 @@
           ]
         },
         "subnets": [
-        {
-          "name": "snet-functions",
-          "properties": {
-            "addressPrefix": "10.1.1.0/24",
-            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-            "serviceEndpoints": [
-              {
-                "service": "Microsoft.Storage"
-              },
-              {
-                "service": "Microsoft.KeyVault"
-              },
-              {
-                "service": "Microsoft.Web"
-              },
-              {
-                "service": "Microsoft.ServiceBus"
-              },
-              {
-                "service": "Microsoft.EventHub"
-              },
-              {
-                "service": "Microsoft.AzureCosmosDB"
-              }
-            ],
-            "delegations": [
-              {
-                "name": "delegation",
-                "properties": {
-                  "serviceName": "Microsoft.Web/serverFarms"
+          {
+            "name": "snet-functions",
+            "properties": {
+              "addressPrefix": "10.1.1.0/24",
+              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage"
+                },
+                {
+                  "service": "Microsoft.KeyVault"
+                },
+                {
+                  "service": "Microsoft.Web"
+                },
+                {
+                  "service": "Microsoft.ServiceBus"
+                },
+                {
+                  "service": "Microsoft.EventHub"
+                },
+                {
+                  "service": "Microsoft.AzureCosmosDB"
                 }
-              }
-            ]
+              ],
+              "delegations": [
+                {
+                  "name": "delegation",
+                  "properties": {
+                    "serviceName": "Microsoft.Web/serverFarms"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "name": "snet-private-endpoints",
+            "properties": {
+              "addressPrefix": "10.1.2.0/24",
+              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+              "privateEndpointNetworkPolicies": "Disabled"
+            }
+          },
+          {
+            "name": "snet-orchestration",
+            "properties": {
+              "addressPrefix": "10.1.3.0/24",
+              "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.ServiceBus"
+                },
+                {
+                  "service": "Microsoft.EventHub"
+                }
+              ]
+            }
           }
-        },
-        {
-          "name": "snet-private-endpoints",
-          "properties": {
-            "addressPrefix": "10.1.2.0/24",
-            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-pe-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-            "privateEndpointNetworkPolicies": "Disabled"
-          }
-        },
-        {
-          "name": "snet-orchestration",
-          "properties": {
-            "addressPrefix": "10.1.3.0/24",
-            "networkSecurityGroup": "[if(parameters('deployNetworking'), createObject('id', resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-orchestration-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))), null())]",
-            "serviceEndpoints": [
-              {
-                "service": "Microsoft.ServiceBus"
-              },
-              {
-                "service": "Microsoft.EventHub"
-              }
-            ]
-          }
-        }
-      ]
+        ]
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkSecurityGroups', format('{0}-functions-{1}', variables('nsgPrefix'), variables('uniqueSuffix')))]",
@@ -354,36 +354,36 @@
       ]
     },
     {
-  "condition": "[parameters('deployCosmosDB')]",
-  "type": "Microsoft.DocumentDB/databaseAccounts",
-  "apiVersion": "2023-11-15",
-  "name": "[format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
-  "location": "[parameters('location')]",
-  "kind": "GlobalDocumentDB",
-  "properties": {
-    "databaseAccountOfferType": "Standard",
-    "consistencyPolicy": {
-      "defaultConsistencyLevel": "Session"
+      "condition": "[parameters('deployCosmosDB')]",
+      "type": "Microsoft.DocumentDB/databaseAccounts",
+      "apiVersion": "2023-11-15",
+      "name": "[format('{0}-cosmos-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
+      "location": "[parameters('location')]",
+      "kind": "GlobalDocumentDB",
+      "properties": {
+        "databaseAccountOfferType": "Standard",
+        "consistencyPolicy": {
+          "defaultConsistencyLevel": "Session"
+        },
+        "locations": [
+          {
+            "locationName": "[parameters('location')]",
+            "failoverPriority": 0
+          }
+        ],
+        "capabilities": [
+          {
+            "name": "EnableServerless"
+          }
+        ],
+        "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
+        "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
+        "virtualNetworkRules": "[if(parameters('deployNetworking'), json(concat('[{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVNetServiceEndpoint\": false}]')), json('[]'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ]
     },
-    "locations": [
-      {
-        "locationName": "[parameters('location')]",
-        "failoverPriority": 0
-      }
-    ],
-    "capabilities": [
-      {
-        "name": "EnableServerless"
-      }
-    ],
-    "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
-    "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
-    "virtualNetworkRules": "[if(parameters('deployNetworking'), json(concat('[{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVNetServiceEndpoint\": false}]')), json('[]'))]"
-  },
-  "dependsOn": [
-    "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
-  ]
-}  ,
     {
       "condition": "[parameters('deployAIFoundry')]",
       "type": "Microsoft.MachineLearningServices/workspaces",
@@ -417,8 +417,9 @@
       "name": "[format('{0}-sb-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))]",
       "location": "[parameters('location')]",
       "sku": {
-        "name": "Standard",
-        "tier": "Standard"
+        "name": "Premium",
+        "tier": "Premium",
+        "capacity": 1
       },
       "properties": {
         "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
@@ -648,19 +649,6 @@
       "name": "[format('{0}/ai-foundry-endpoint', variables('keyVaultName'))]",
       "properties": {
         "value": "[reference(resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-10-01').discoveryUrl]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
-        "[resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix')))]"
-      ]
-    },
-    {
-      "condition": "[parameters('deployAIFoundry')]",
-      "type": "Microsoft.KeyVault/vaults/secrets",
-      "apiVersion": "2023-07-01",
-      "name": "[format('{0}/ai-foundry-key', variables('keyVaultName'))]",
-      "properties": {
-        "value": "[listKeys(resourceId('Microsoft.MachineLearningServices/workspaces', format('{0}-aihub-{1}', variables('resourcePrefix'), variables('uniqueSuffix'))), '2023-10-01').primaryKey]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
