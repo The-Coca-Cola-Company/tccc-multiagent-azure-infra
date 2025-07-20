@@ -2,7 +2,7 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "metadata": {
-    "description": "🔐 Step 1/2: Deploy TCCC Hub infrastructure with Service Bus & Event Grid - ENTERPRISE ORCHESTRATOR",
+    "description": "🔐 Step 1/2: Deploy TCCC Hub infrastructure with Service Bus & Event Grid - ENTERPRISE ORCHESTRATOR - SYNTAX FIXED",
     "_generator": {
       "name": "bicep",
       "version": "0.20.4.51522",
@@ -306,7 +306,7 @@
         "supportsHttpsTrafficOnly": true,
         "minimumTlsVersion": "TLS1_2",
         "allowBlobPublicAccess": false,
-        "networkAcls": "[if(parameters('deployNetworking'), json(format('{\"bypass\": \"AzureServices\", \"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{{\"id\": \"{0}/subnets/snet-functions\", \"ignoreMissingVnetServiceEndpoint\": false}}]}', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))), json('{\"defaultAction\": \"Allow\", \"bypass\": \"AzureServices\"}'))]"
+        "networkAcls": "[if(parameters('deployNetworking'), json(concat('{\"bypass\": \"AzureServices\", \"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVnetServiceEndpoint\": false}]}')), json('{\"defaultAction\": \"Allow\", \"bypass\": \"AzureServices\"}'))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
@@ -347,7 +347,7 @@
         "enableSoftDelete": true,
         "softDeleteRetentionInDays": 90,
         "enablePurgeProtection": true,
-        "networkAcls": "[if(parameters('deployNetworking'), json(format('{\"bypass\": \"AzureServices\", \"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{{\"id\": \"{0}/subnets/snet-functions\", \"ignoreMissingVnetServiceEndpoint\": false}}]}', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))), json('{\"defaultAction\": \"Allow\", \"bypass\": \"AzureServices\"}'))]"
+        "networkAcls": "[if(parameters('deployNetworking'), json(concat('{\"bypass\": \"AzureServices\", \"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\", \"ignoreMissingVnetServiceEndpoint\": false}]}')), json('{\"defaultAction\": \"Allow\", \"bypass\": \"AzureServices\"}'))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
@@ -378,7 +378,7 @@
         ],
         "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
         "isVirtualNetworkFilterEnabled": "[parameters('deployNetworking')]",
-        "virtualNetworkRules": "[if(parameters('deployNetworking'), array(createObject('id', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), 'ignoreMissingVNetServiceEndpoint', false)), array())]"
+        "virtualNetworkRules": "[if(parameters('deployNetworking'), createArray(createObject('id', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), 'ignoreMissingVNetServiceEndpoint', false)), createArray())]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
@@ -422,7 +422,7 @@
       },
       "properties": {
         "publicNetworkAccess": "[if(parameters('deployNetworking'), 'Disabled', 'Enabled')]",
-        "networkRuleSets": "[if(parameters('deployNetworking'), json(format('{\"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{{\"subnet\": {{\"id\": \"{0}/subnets/snet-functions\"}}, \"ignoreMissingVnetServiceEndpoint\": false}}, {{\"subnet\": {{\"id\": \"{0}/subnets/snet-orchestration\"}}, \"ignoreMissingVnetServiceEndpoint\": false}}]}', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')))), json('{\"defaultAction\": \"Allow\"}'))]"
+        "networkRuleSets": "[if(parameters('deployNetworking'), json(concat('{\"defaultAction\": \"Deny\", \"virtualNetworkRules\": [{\"subnet\": {\"id\": \"', format('{0}/subnets/snet-functions', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\"}, \"ignoreMissingVnetServiceEndpoint\": false}, {\"subnet\": {\"id\": \"', format('{0}/subnets/snet-orchestration', resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))), '\"}, \"ignoreMissingVnetServiceEndpoint\": false}]}')), json('{\"defaultAction\": \"Allow\"}'))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
